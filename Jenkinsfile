@@ -2,26 +2,28 @@ pipeline {
     agent any
 
     environment {
+        // Set local path
+        LOCAL_PATH = "${env.WORKSPACE}\\Software"
         // Set network path
-        NETWORK_PATH = "${bat(returnStdout: true, script: 'echo %TEMP%').trim()}\\Software"
+        NETWORK_PATH = "\\server\\share"
     }
 
     stages {
         stage('Copy Software Installers') {
             steps {
                 script {
-                    // Create the software directory
-                    bat "mkdir %NETWORK_PATH%"
+                    // Create the local directory
+                    bat "mkdir ${LOCAL_PATH}"
 
-                    // Copy software installers to the software directory
-                    bat "xcopy /Y \\server\\share\\GitInstaller.exe %NETWORK_PATH%"
-                    bat "xcopy /Y \\server\\share\\maven.zip %NETWORK_PATH%"
-                    bat "xcopy /Y \\server\\share\\NodeInstaller.msi %NETWORK_PATH%"
-                    bat "xcopy /Y \\server\\share\\UFT.iso %NETWORK_PATH%"
-                    bat "xcopy /Y \\server\\share\\JDKInstaller.exe %NETWORK_PATH%"
+                    // Copy software installers to the local directory, overwriting existing files
+                    bat "xcopy /Y /Q ${NETWORK_PATH}\\GitInstaller.exe ${LOCAL_PATH}"
+                    bat "xcopy /Y /Q ${NETWORK_PATH}\\maven.zip ${LOCAL_PATH}"
+                    bat "xcopy /Y /Q ${NETWORK_PATH}\\NodeInstaller.msi ${LOCAL_PATH}"
+                    bat "xcopy /Y /Q ${NETWORK_PATH}\\UFT.iso ${LOCAL_PATH}"
+                    bat "xcopy /Y /Q ${NETWORK_PATH}\\JDKInstaller.exe ${LOCAL_PATH}"
 
-                    // Display the network path
-                    echo "Network Path: $NETWORK_PATH"
+                    // Display the local path
+                    echo "Local Path: ${LOCAL_PATH}"
                 }
             }
         }
@@ -30,7 +32,7 @@ pipeline {
             steps {
                 script {
                     if (!isInstalled('Git')) {
-                        installSoftware('Git', "$NETWORK_PATH\\GitInstaller.exe", '"/SILENT"')
+                        installSoftware('Git', "${LOCAL_PATH}\\GitInstaller.exe", '"/SILENT"')
                     } else {
                         echo "Git is already installed"
                     }
@@ -42,7 +44,7 @@ pipeline {
             steps {
                 script {
                     if (!isInstalled('Maven')) {
-                        installSoftware('Maven', "$NETWORK_PATH\\maven.zip", '')
+                        installSoftware('Maven', "${LOCAL_PATH}\\maven.zip", '')
                     } else {
                         echo "Maven is already installed"
                     }
@@ -54,7 +56,7 @@ pipeline {
             steps {
                 script {
                     if (!isInstalled('Node.js')) {
-                        installSoftware('Node.js', "$NETWORK_PATH\\NodeInstaller.msi", '"/i /qn"')
+                        installSoftware('Node.js', "${LOCAL_PATH}\\NodeInstaller.msi", '"/i /qn"')
                     } else {
                         echo "Node.js is already installed"
                     }
@@ -66,7 +68,7 @@ pipeline {
             steps {
                 script {
                     if (!isInstalled('Micro Focus UFT')) {
-                        installSoftware('Micro Focus UFT', "$NETWORK_PATH\\UFT.iso", '"/qn"')
+                        installSoftware('Micro Focus UFT', "${LOCAL_PATH}\\UFT.iso", '"/qn"')
                     } else {
                         echo "Micro Focus UFT is already installed"
                     }
@@ -78,7 +80,7 @@ pipeline {
             steps {
                 script {
                     if (!isInstalled('JDK')) {
-                        installSoftware('JDK', "$NETWORK_PATH\\JDKInstaller.exe", '"/s"')
+                        installSoftware('JDK', "${LOCAL_PATH}\\JDKInstaller.exe", '"/s"')
                     } else {
                         echo "JDK is already installed"
                     }
