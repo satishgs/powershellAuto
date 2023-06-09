@@ -8,18 +8,18 @@ pipeline {
         NETWORK_PATH = "\\server\\share"
         // Set folder name with spaces
         FOLDER_NAME = "Software with Spaces"
+        // Set Maven home
+        MAVEN_HOME = "${LOCAL_PATH}\\${FOLDER_NAME}\\maven"
+        // Set Java home
+        JAVA_HOME = "${LOCAL_PATH}\\${FOLDER_NAME}\\jdk"
     }
 
     stages {
         stage('Copy Software Installers') {
             steps {
                 script {
-                    // Check if the local directory exists
-                    def localDirExists = bat(returnStatus: true, script: "if exist \"${LOCAL_PATH}\\${FOLDER_NAME}\" (exit 0) else (exit 1)")
-                    if (localDirExists == 0) {
-                        echo "Local folder already exists. Removing existing folder."
-                        bat "rmdir /s /q \"${LOCAL_PATH}\\${FOLDER_NAME}\""
-                    }
+                    // Remove the existing local folder if it exists
+                    bat "if exist \"${LOCAL_PATH}\\${FOLDER_NAME}\" rmdir /s /q \"${LOCAL_PATH}\\${FOLDER_NAME}\""
 
                     // Create the local directory
                     bat "mkdir \"${LOCAL_PATH}\\${FOLDER_NAME}\""
@@ -40,11 +40,7 @@ pipeline {
         stage('Install Git') {
             steps {
                 script {
-                    if (!isInstalled('Git')) {
-                        installSoftware('Git', "${LOCAL_PATH}\\${FOLDER_NAME}\\GitInstaller.exe", '"/SILENT"')
-                    } else {
-                        echo "Git is already installed"
-                    }
+                    installSoftware('Git', "${LOCAL_PATH}\\${FOLDER_NAME}\\GitInstaller.exe", '"/SILENT"')
                 }
             }
         }
@@ -52,11 +48,10 @@ pipeline {
         stage('Install Maven') {
             steps {
                 script {
-                    if (!isInstalled('Maven')) {
-                        installSoftware('Maven', "${LOCAL_PATH}\\${FOLDER_NAME}\\maven.zip", '')
-                    } else {
-                        echo "Maven is already installed"
-                    }
+                    installSoftware('Maven', "${LOCAL_PATH}\\${FOLDER_NAME}\\maven.zip", '')
+
+                    // Set MAVEN_HOME environment variable
+                    bat "echo MAVEN_HOME=${MAVEN_HOME} > ${MAVEN_HOME}\\env.properties"
                 }
             }
         }
@@ -64,11 +59,16 @@ pipeline {
         stage('Install Node.js') {
             steps {
                 script {
-                    if (!isInstalled('Node.js')) {
-                        installSoftware('Node.js', "${LOCAL_PATH}\\${FOLDER_NAME}\\NodeInstaller.msi", '"/i /qn"')
-                    } else {
-                        echo "Node.js is already installed"
-                    }
+                    installSoftware('Node.js', "${LOCAL_PATH}\\${FOLDER_NAME}\\NodeInstaller.msi", '"/i /qn"')
+                }
+            }
+        }
+
+        stage('Unpack UFT Installer') {
+            steps {
+                script {
+                    // Unzip the UFT installer
+                    bat "powershell.exe -Command \"Expand-Archive -Path \\\"${LOCAL_PATH}\\${FOLDER_NAME}\\UFT.iso\\\" -DestinationPath \\\"${LOCAL_PATH}\\${FOLDER_NAME}\\UFT\\\"\""
                 }
             }
         }
@@ -76,11 +76,7 @@ pipeline {
         stage('Install Micro Focus UFT') {
             steps {
                 script {
-                    if (!isInstalled('Micro Focus UFT')) {
-                        installSoftware('Micro Focus UFT', "${LOCAL_PATH}\\${FOLDER_NAME}\\UFT.iso", '"/qn"')
-                    } else {
-                        echo "Micro Focus UFT is already installed"
-                    }
+                    installSoftware('Micro Focus UFT', "${LOCAL_PATH}\\${FOLDER_NAME}\\UFT\\UFTInstaller.exe", '"/qn"')
                 }
             }
         }
@@ -88,11 +84,10 @@ pipeline {
         stage('Install JDK') {
             steps {
                 script {
-                    if (!isInstalled('JDK')) {
-                        installSoftware('JDK', "${LOCAL_PATH}\\${FOLDER_NAME}\\JDKInstaller.exe", '"/s"')
-                    } else {
-                        echo "JDK is already installed"
-                    }
+                    installSoftware('JDK', "${LOCAL_PATH}\\${FOLDER_NAME}\\JDKInstaller.exe", '"/s"')
+
+                    // Set JAVA_HOME environment variable
+                    bat "echo JAVA_HOME=${JAVA_HOME} > ${JAVA_HOME}\\env.properties"
                 }
             }
         }
@@ -116,10 +111,9 @@ def installSoftware(name, installerPath, arguments) {
     progressBar(progressBarOptions: [currentBuildProgress: "${currentBuild.currentStageIndex}/${currentBuild.totalStages}", progressColor: progressColor], description: "Installing ${name}") {
         bat "start /WAIT ${installerPath} ${arguments}"
 
-        // Display a visual indicator while waiting
-        for (int i = 10; i > 0; i--) {
-            echo "Waiting for ${name} installation to complete... ${i}"
-            sleep 1
+        // Wait for the installation to complete
+        waitUntil {
+            isInstalled(name)
         }
 
         // Validate installation
