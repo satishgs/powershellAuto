@@ -13,7 +13,9 @@ pipeline {
         // Set Maven home
         MAVEN_HOME = "${LOCAL_PATH}\\maven"
         // Set Java home
-        JAVA_HOME = "${LOCAL_PATH}\\jdk"
+        JDK_HOME = "${LOCAL_PATH}\\jdk"
+        // Set JDK bin directory
+        JDK_BIN_DIR = "${JDK_HOME}\\bin"
     }
 
     stages {
@@ -166,9 +168,31 @@ def isInstalled(name) {
 def setJavaHome() {
     // Set JAVA_HOME environment variable on Windows
     if (isWindows()) {
-        bat 'setx JAVA_HOME "${env.JAVA_HOME}"'
-        bat 'setx PATH "%PATH%;%JAVA_HOME%\\bin"'
+        def javaHomeDir = findJavaHomeDir(JDK_HOME)
+        if (javaHomeDir != null) {
+            env.JAVA_HOME = javaHomeDir
+            bat 'setx JAVA_HOME "%JAVA_HOME%"'
+            bat 'setx PATH "%PATH%;%JAVA_HOME%\\bin"'
+        } else {
+            error "Unable to locate JDK installation directory"
+        }
     }
+}
+
+def findJavaHomeDir(jdkHomeDir) {
+    def javaHomeDir = null
+
+    def file = new File(jdkHomeDir)
+    def jdkDirs = file.listFiles()?.toList() ?: []
+
+    jdkDirs.each { dir ->
+        if (dir.name.toLowerCase().startsWith("jdk")) {
+            javaHomeDir = dir.absolutePath
+            return false // Stop iterating once JDK directory is found
+        }
+    }
+
+    return javaHomeDir
 }
 
 def setMavenHome() {
