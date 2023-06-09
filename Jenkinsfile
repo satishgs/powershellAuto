@@ -2,16 +2,18 @@ pipeline {
     agent any
 
     environment {
-        // Set local path
-        LOCAL_PATH = "${env.WORKSPACE}\\Software"
-        // Set network path
-        NETWORK_PATH = "\\server\\share"
+        // Set local drive
+        LOCAL_DRIVE = "D:"
         // Set folder name with spaces
         FOLDER_NAME = "Software with Spaces"
+        // Set local path
+        LOCAL_PATH = "${LOCAL_DRIVE}\\${FOLDER_NAME}"
+        // Set network path
+        NETWORK_PATH = "\\server\\share"
         // Set Maven home
-        MAVEN_HOME = "${LOCAL_PATH}\\${FOLDER_NAME}\\maven"
+        MAVEN_HOME = "${LOCAL_PATH}\\maven"
         // Set Java home
-        JAVA_HOME = "${LOCAL_PATH}\\${FOLDER_NAME}\\jdk"
+        JAVA_HOME = "${LOCAL_PATH}\\jdk"
     }
 
     stages {
@@ -19,20 +21,20 @@ pipeline {
             steps {
                 script {
                     // Remove the existing local folder if it exists
-                    bat "if exist \"${LOCAL_PATH}\\${FOLDER_NAME}\" rmdir /s /q \"${LOCAL_PATH}\\${FOLDER_NAME}\""
+                    bat "if exist \"${LOCAL_PATH}\" rmdir /s /q \"${LOCAL_PATH}\""
 
                     // Create the local directory
-                    bat "mkdir \"${LOCAL_PATH}\\${FOLDER_NAME}\""
+                    bat "mkdir \"${LOCAL_PATH}\""
 
                     // Copy software installers to the local directory, overwriting existing files
-                    bat "xcopy /Y /Q \"${NETWORK_PATH}\\GitInstaller.exe\" \"${LOCAL_PATH}\\${FOLDER_NAME}\""
-                    bat "xcopy /Y /Q \"${NETWORK_PATH}\\maven.zip\" \"${LOCAL_PATH}\\${FOLDER_NAME}\""
-                    bat "xcopy /Y /Q \"${NETWORK_PATH}\\NodeInstaller.msi\" \"${LOCAL_PATH}\\${FOLDER_NAME}\""
-                    bat "xcopy /Y /Q \"${NETWORK_PATH}\\UFT.iso\" \"${LOCAL_PATH}\\${FOLDER_NAME}\""
-                    bat "xcopy /Y /Q \"${NETWORK_PATH}\\JDKInstaller.exe\" \"${LOCAL_PATH}\\${FOLDER_NAME}\""
+                    bat "xcopy /Y /Q \"${NETWORK_PATH}\\GitInstaller.exe\" \"${LOCAL_PATH}\""
+                    bat "xcopy /Y /Q \"${NETWORK_PATH}\\maven.zip\" \"${LOCAL_PATH}\""
+                    bat "xcopy /Y /Q \"${NETWORK_PATH}\\NodeInstaller.msi\" \"${LOCAL_PATH}\""
+                    bat "xcopy /Y /Q \"${NETWORK_PATH}\\UFT.iso\" \"${LOCAL_PATH}\""
+                    bat "xcopy /Y /Q \"${NETWORK_PATH}\\JDKInstaller.exe\" \"${LOCAL_PATH}\""
 
                     // Display the local path
-                    echo "Local Path: ${LOCAL_PATH}\\${FOLDER_NAME}"
+                    echo "Local Path: ${LOCAL_PATH}"
                 }
             }
         }
@@ -40,7 +42,7 @@ pipeline {
         stage('Install Git') {
             steps {
                 script {
-                    installSoftware('Git', "${LOCAL_PATH}\\${FOLDER_NAME}\\GitInstaller.exe", '"/SILENT"')
+                    installSoftware('Git', "${LOCAL_PATH}\\GitInstaller.exe", '"/SILENT"')
                 }
             }
         }
@@ -48,10 +50,7 @@ pipeline {
         stage('Install Maven') {
             steps {
                 script {
-                    installSoftware('Maven', "${LOCAL_PATH}\\${FOLDER_NAME}\\maven.zip", '')
-
-                    // Set MAVEN_HOME environment variable
-                    bat "echo MAVEN_HOME=${MAVEN_HOME} > ${MAVEN_HOME}\\env.properties"
+                    installMaven("${LOCAL_PATH}\\maven.zip")
                 }
             }
         }
@@ -59,7 +58,7 @@ pipeline {
         stage('Install Node.js') {
             steps {
                 script {
-                    installSoftware('Node.js', "${LOCAL_PATH}\\${FOLDER_NAME}\\NodeInstaller.msi", '"/i /qn"')
+                    installSoftware('Node.js', "${LOCAL_PATH}\\NodeInstaller.msi", '"/i /qn"')
                 }
             }
         }
@@ -68,7 +67,7 @@ pipeline {
             steps {
                 script {
                     // Unzip the UFT installer
-                    bat "powershell.exe -Command \"Expand-Archive -Path \\\"${LOCAL_PATH}\\${FOLDER_NAME}\\UFT.iso\\\" -DestinationPath \\\"${LOCAL_PATH}\\${FOLDER_NAME}\\UFT\\\"\""
+                    bat "powershell.exe -Command \"Expand-Archive -Path '${LOCAL_PATH}\\UFT.iso' -DestinationPath '${LOCAL_PATH}\\UFT'\""
                 }
             }
         }
@@ -76,7 +75,7 @@ pipeline {
         stage('Install Micro Focus UFT') {
             steps {
                 script {
-                    installSoftware('Micro Focus UFT', "${LOCAL_PATH}\\${FOLDER_NAME}\\UFT\\UFTInstaller.exe", '"/qn"')
+                    installSoftware('Micro Focus UFT', "${LOCAL_PATH}\\UFT\\UFTInstaller.exe", '"/qn"')
                 }
             }
         }
@@ -84,10 +83,7 @@ pipeline {
         stage('Install JDK') {
             steps {
                 script {
-                    installSoftware('JDK', "${LOCAL_PATH}\\${FOLDER_NAME}\\JDKInstaller.exe", '"/s"')
-
-                    // Set JAVA_HOME environment variable
-                    bat "echo JAVA_HOME=${JAVA_HOME} > ${JAVA_HOME}\\env.properties"
+                    installSoftware('JDK', "${LOCAL_PATH}\\JDKInstaller.exe", '"/s"')
                 }
             }
         }
@@ -95,6 +91,10 @@ pipeline {
 
     post {
         success {
+            script {
+                setJavaHome()
+                setMavenHome()
+            }
             echo 'All installations completed successfully'
         }
         failure {
@@ -125,6 +125,18 @@ def installSoftware(name, installerPath, arguments) {
     }
 }
 
+def installMaven(mavenZipPath) {
+    def mavenExtractPath = "${MAVEN_HOME}\\apache-maven"
+    def mavenBinPath = "${mavenExtractPath}\\bin"
+
+    echo "Installing Maven..."
+    progressBar(progressBarOptions: [currentBuildProgress: "${currentBuild.currentStageIndex}/${currentBuild.totalStages}", progressColor: 'GREEN'], description: "Installing Maven") {
+        bat "powershell.exe -Command \"Expand-Archive -Path '${mavenZipPath}' -DestinationPath '${MAVEN_HOME}'\""
+    }
+    env.PATH = "${env.PATH};${mavenBinPath}"
+    env.MAVEN_HOME = mavenExtractPath
+}
+
 def isInstalled(name) {
     def installed = false
 
@@ -149,4 +161,32 @@ def isInstalled(name) {
     }
 
     return installed
+}
+
+def setJavaHome() {
+    // Set JAVA_HOME environment variable on Windows
+    if (isWindows()) {
+        bat 'setx JAVA_HOME "${env.JAVA_HOME}"'
+        bat 'setx PATH "%PATH%;%JAVA_HOME%\\bin"'
+    }
+}
+
+def setMavenHome() {
+    // Set MAVEN_HOME environment variable on Windows
+    if (isWindows()) {
+        bat 'setx MAVEN_HOME "${env.MAVEN_HOME}"'
+        bat 'setx PATH "%PATH%;%MAVEN_HOME%\\bin"'
+    }
+}
+
+def isWindows() {
+    return isUnix() ? false : true
+}
+
+def isUnix() {
+    return isUnixLike()
+}
+
+def isUnixLike() {
+    return !isWindows()
 }
