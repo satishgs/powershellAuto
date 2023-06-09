@@ -6,24 +6,33 @@ pipeline {
         LOCAL_PATH = "${env.WORKSPACE}\\Software"
         // Set network path
         NETWORK_PATH = "\\server\\share"
+        // Set folder name with spaces
+        FOLDER_NAME = "Software with Spaces"
     }
 
     stages {
         stage('Copy Software Installers') {
             steps {
                 script {
+                    // Check if the local directory exists
+                    def localDirExists = bat(returnStatus: true, script: "if exist \"${LOCAL_PATH}\\${FOLDER_NAME}\" (exit 0) else (exit 1)")
+                    if (localDirExists == 0) {
+                        echo "Local folder already exists. Removing existing folder."
+                        bat "rmdir /s /q \"${LOCAL_PATH}\\${FOLDER_NAME}\""
+                    }
+
                     // Create the local directory
-                    bat "mkdir ${LOCAL_PATH}"
+                    bat "mkdir \"${LOCAL_PATH}\\${FOLDER_NAME}\""
 
                     // Copy software installers to the local directory, overwriting existing files
-                    bat "xcopy /Y /Q ${NETWORK_PATH}\\GitInstaller.exe ${LOCAL_PATH}"
-                    bat "xcopy /Y /Q ${NETWORK_PATH}\\maven.zip ${LOCAL_PATH}"
-                    bat "xcopy /Y /Q ${NETWORK_PATH}\\NodeInstaller.msi ${LOCAL_PATH}"
-                    bat "xcopy /Y /Q ${NETWORK_PATH}\\UFT.iso ${LOCAL_PATH}"
-                    bat "xcopy /Y /Q ${NETWORK_PATH}\\JDKInstaller.exe ${LOCAL_PATH}"
+                    bat "xcopy /Y /Q \"${NETWORK_PATH}\\GitInstaller.exe\" \"${LOCAL_PATH}\\${FOLDER_NAME}\""
+                    bat "xcopy /Y /Q \"${NETWORK_PATH}\\maven.zip\" \"${LOCAL_PATH}\\${FOLDER_NAME}\""
+                    bat "xcopy /Y /Q \"${NETWORK_PATH}\\NodeInstaller.msi\" \"${LOCAL_PATH}\\${FOLDER_NAME}\""
+                    bat "xcopy /Y /Q \"${NETWORK_PATH}\\UFT.iso\" \"${LOCAL_PATH}\\${FOLDER_NAME}\""
+                    bat "xcopy /Y /Q \"${NETWORK_PATH}\\JDKInstaller.exe\" \"${LOCAL_PATH}\\${FOLDER_NAME}\""
 
                     // Display the local path
-                    echo "Local Path: ${LOCAL_PATH}"
+                    echo "Local Path: ${LOCAL_PATH}\\${FOLDER_NAME}"
                 }
             }
         }
@@ -32,7 +41,7 @@ pipeline {
             steps {
                 script {
                     if (!isInstalled('Git')) {
-                        installSoftware('Git', "${LOCAL_PATH}\\GitInstaller.exe", '"/SILENT"')
+                        installSoftware('Git', "${LOCAL_PATH}\\${FOLDER_NAME}\\GitInstaller.exe", '"/SILENT"')
                     } else {
                         echo "Git is already installed"
                     }
@@ -44,7 +53,7 @@ pipeline {
             steps {
                 script {
                     if (!isInstalled('Maven')) {
-                        installSoftware('Maven', "${LOCAL_PATH}\\maven.zip", '')
+                        installSoftware('Maven', "${LOCAL_PATH}\\${FOLDER_NAME}\\maven.zip", '')
                     } else {
                         echo "Maven is already installed"
                     }
@@ -56,7 +65,7 @@ pipeline {
             steps {
                 script {
                     if (!isInstalled('Node.js')) {
-                        installSoftware('Node.js', "${LOCAL_PATH}\\NodeInstaller.msi", '"/i /qn"')
+                        installSoftware('Node.js', "${LOCAL_PATH}\\${FOLDER_NAME}\\NodeInstaller.msi", '"/i /qn"')
                     } else {
                         echo "Node.js is already installed"
                     }
@@ -68,7 +77,7 @@ pipeline {
             steps {
                 script {
                     if (!isInstalled('Micro Focus UFT')) {
-                        installSoftware('Micro Focus UFT', "${LOCAL_PATH}\\UFT.iso", '"/qn"')
+                        installSoftware('Micro Focus UFT', "${LOCAL_PATH}\\${FOLDER_NAME}\\UFT.iso", '"/qn"')
                     } else {
                         echo "Micro Focus UFT is already installed"
                     }
@@ -80,7 +89,7 @@ pipeline {
             steps {
                 script {
                     if (!isInstalled('JDK')) {
-                        installSoftware('JDK', "${LOCAL_PATH}\\JDKInstaller.exe", '"/s"')
+                        installSoftware('JDK', "${LOCAL_PATH}\\${FOLDER_NAME}\\JDKInstaller.exe", '"/s"')
                     } else {
                         echo "JDK is already installed"
                     }
