@@ -46,15 +46,28 @@ pipeline {
 
                     Write-Host "Starting the file copy from $Env:SOURCE_PATH to $Env:DEST_PATH. This may take some time for large files..."
 
-                    # Begin copying file using robocopy for speed
+                    # Count the number of files to copy
+                    $totalFiles = 0
+                    $jobCount = 0
+                    $job = Start-Job -ScriptBlock {
+                        $global:totalFiles = (robocopy (Split-Path -Path $Env:SOURCE_PATH) $destinationDir (Split-Path -Path $Env:SOURCE_PATH -Leaf) /L /NJH /NJS /NS /NDL /FP /XO /XC /XN /MT /E /L /BYTES /S /NJH /NJS /NFL /NDL /NP /NC /LOG+:$Env:WORKSPACE\robocopy.log).Count
+                    }
+
+                    while ($job.State -eq 'Running') {
+                        $job | Receive-Job -Wait
+                    }
+
+                    $totalFiles = $global:totalFiles
+
                     $job = Start-Job -ScriptBlock {
                         robocopy (Split-Path -Path $Env:SOURCE_PATH) $destinationDir (Split-Path -Path $Env:SOURCE_PATH -Leaf) /R:3 /W:5 /NP /TEE /ETA /MT /LOG+:$Env:WORKSPACE\robocopy.log /FP /XO /XC /XN /NS /NJH /NJS /NFL /NDL
                     }
 
                     while ($job.State -eq 'Running') {
                         $job | Receive-Job -Wait | ForEach-Object {
-                            $percentage = $_.Split('%')[0].Trim()
-                            Write-Progress -Activity "Copying file" -PercentComplete $percentage
+                            $jobCount += $_.Count
+                            $progressPercentage = ($jobCount / $totalFiles) * 100
+                            Write-Progress -Activity "Copying file" -PercentComplete $progressPercentage
                         }
                     }
 
