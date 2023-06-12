@@ -5,34 +5,26 @@ pipeline {
         stage('Copy Zip') {
             steps {
                 script {
-                    def sourcePath = "\\\\Network\\Path\\To\\Your\\Archive.zip"
-                    def destinationPath = "C:\\Local\\Path\\To\\Your\\Archive.zip"
+                    env.SOURCE_PATH = "\\\\Network\\Path\\To\\Your\\Archive.zip"
+                    env.DEST_PATH = "C:\\Local\\Path\\To\\Your\\Archive.zip"
 
                     powershell '''
-                    param(
-                        [Parameter(Mandatory=$true)]
-                        [string] $sourcePath,
-
-                        [Parameter(Mandatory=$true)]
-                        [string] $destinationPath
-                    )
-
                     # Check if source file exists
-                    if (!(Test-Path -Path $sourcePath)) {
-                        Write-Error "Source file $sourcePath does not exist."
+                    if (!(Test-Path -Path "$Env:SOURCE_PATH")) {
+                        Write-Error "Source file $Env:SOURCE_PATH does not exist."
                         exit 1
                     }
 
                     # Check if destination directory exists, if not, create it
-                    $destinationDir = Split-Path -Path $destinationPath -Parent
+                    $destinationDir = Split-Path -Path "$Env:DEST_PATH" -Parent
                     if (!(Test-Path -Path $destinationDir)) {
                         New-Item -ItemType Directory -Path $destinationDir | Out-Null
                     }
 
                     # Copy the file from the network drive to the local directory with progress
                     $bufferSize = 8192
-                    $sourceStream = [System.IO.File]::OpenRead($sourcePath)
-                    $targetStream = [System.IO.File]::OpenWrite($destinationPath)
+                    $sourceStream = [System.IO.File]::OpenRead("$Env:SOURCE_PATH")
+                    $targetStream = [System.IO.File]::OpenWrite("$Env:DEST_PATH")
                     $buffer = New-Object byte[] $bufferSize
                     $totalLength = $sourceStream.Length
                     $bytesRead = 0
@@ -43,7 +35,7 @@ pipeline {
                             $targetStream.Write($buffer, 0, $readLength)
                             $bytesRead += $readLength
                             $progress = [math]::Round(($bytesRead / $totalLength) * 100, 2)
-                            Write-Progress -Activity "Copying $sourcePath" -Status "$progress% Complete" -PercentComplete $progress
+                            Write-Progress -Activity "Copying $Env:SOURCE_PATH" -Status "$progress% Complete" -PercentComplete $progress
                         } while ($readLength -ne 0)
                     }
                     finally {
@@ -51,8 +43,8 @@ pipeline {
                         $targetStream.Close()
                     }
 
-                    Write-Output "Copied $sourcePath to $destinationPath"
-                    ''' -sourcePath $sourcePath -destinationPath $destinationPath
+                    Write-Output "Copied $Env:SOURCE_PATH to $Env:DEST_PATH"
+                    '''
                 }
             }
         }
@@ -60,8 +52,8 @@ pipeline {
         stage('Unpack Zip') {
             steps {
                 script {
-                    def zipFilePath = "C:\\Local\\Path\\To\\Your\\Archive.zip"
-                    def destinationPath = "C:\\Destination\\Path"
+                    env.ZIP_PATH = "C:\\Local\\Path\\To\\Your\\Archive.zip"
+                    env.UNPACK_PATH = "C:\\Destination\\Path"
 
                     powershell '''
                     # Function to unpack a zip file
@@ -113,8 +105,8 @@ pipeline {
                     }
 
                     # Example usage
-                    Unpack-ZipFile -ZipFilePath $zipFilePath -DestinationPath $destinationPath
-                    ''' -zipFilePath $zipFilePath -destinationPath $destinationPath
+                    Unpack-ZipFile -ZipFilePath "$Env:ZIP_PATH" -DestinationPath "$Env:UNPACK_PATH"
+                    '''
                 }
             }
         }
