@@ -102,7 +102,7 @@ pipeline {
                     }
 
                     # Use System.IO.Compression.FileSystem class from .NET to extract the zip for better performance
-                    Add-Type -Assembly "System.IO.Compression.FileSystem"
+                    Add-Type -AssemblyName "System.IO.Compression.FileSystem"
                     $zipFile = [System.IO.Compression.ZipFile]::OpenRead($Env:DEST_PATH)
                     $totalCount = $zipFile.Entries.Count
                     $index = 0
