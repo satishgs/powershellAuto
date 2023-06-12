@@ -2,9 +2,9 @@ pipeline {
     agent { label 'windows10' }
 
     environment {
-        SOURCE_PATH = null
-        DEST_PATH = null
-        UNPACK_PATH = null
+        SOURCE_PATH = "C:\\Network\\Path\\To\\Your\\Archive.zip"
+        DEST_PATH = "C:\\Local\\Path\\To\\Your\\Archive.zip"
+        UNPACK_PATH = "C:\\Destination\\Path"
     }
 
     stages {
@@ -13,17 +13,6 @@ pipeline {
                 script {
                     powershell '''
                     Write-Host "Starting the script to copy the zip file..."
-
-                    # Prompt user for paths if not set as environment variables
-                    if ([string]::IsNullOrWhiteSpace($Env:SOURCE_PATH)) {
-                        $Env:SOURCE_PATH = Read-Host -Prompt "Please enter the source file path"
-                    }
-                    if ([string]::IsNullOrWhiteSpace($Env:DEST_PATH)) {
-                        $Env:DEST_PATH = Read-Host -Prompt "Please enter the destination file path"
-                    }
-                    if ([string]::IsNullOrWhiteSpace($Env:UNPACK_PATH)) {
-                        $Env:UNPACK_PATH = Read-Host -Prompt "Please enter the path to unpack files"
-                    }
 
                     # Validate source file path
                     if (!(Test-Path -Path $Env:SOURCE_PATH -IsValid)) {
