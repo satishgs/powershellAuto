@@ -1,0 +1,83 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('Copy Zip') {
+            steps {
+                script {
+                    def sourcePath = "\\\\Network\\Path\\To\\Your\\Archive.zip"
+                    def destinationPath = "C:\\Local\\Path\\To\\Your\\Archive.zip"
+
+                    powershell '''
+                    # Check if source file exists
+                    if (!(Test-Path -Path "$Env:sourcePath")) {
+                        Write-Error "Source file $Env:sourcePath does not exist."
+                        exit 1
+                    }
+
+                    # Copy the file from the network drive to the local directory
+                    Copy-Item -Path "$Env:sourcePath" -Destination "$Env:destinationPath"
+                    Write-Output "Copied $Env:sourcePath to $Env:destinationPath"
+                    '''
+                }
+            }
+        }
+
+        stage('Unpack Zip') {
+            steps {
+                powershell '''
+                # Function to unpack a zip file
+                function Unpack-ZipFile {
+                    param(
+                        [Parameter(Mandatory=$true)]
+                        [string] $ZipFilePath,
+
+                        [Parameter(Mandatory=$true)]
+                        [string] $DestinationPath
+                    )
+
+                    # Validate the Zip file path
+                    if (![IO.Path]::IsPathRooted($ZipFilePath) -or !(Test-Path -Path $ZipFilePath -PathType Leaf)) {
+                        throw "Please provide a valid ZipFilePath."
+                    }
+
+                    # Validate the Destination directory path
+                    if (![IO.Path]::IsPathRooted($DestinationPath)) {
+                        throw "Please provide a valid DestinationPath."
+                    }
+
+                    # Create the destination directory if it does not exist
+                    if (!(Test-Path -Path $DestinationPath -PathType Container)) {
+                        New-Item -ItemType Directory -Path $DestinationPath | Out-Null
+                    }
+
+                    # Get the total size of the zip file
+                    $totalSize = (Get-Item -Path $ZipFilePath).Length
+                    $unzippedSize = 0
+
+                    # Create a shell application object to handle the zip file
+                    $shellApp = New-Object -ComObject Shell.Application
+                    $zipFolder = $shellApp.NameSpace($ZipFilePath)
+                    $destinationFolder = $shellApp.NameSpace($DestinationPath)
+
+                    # Iterate over each item in the zip file
+                    foreach ($item in $zipFolder.Items()) {
+                        # Copy the item to the destination folder
+                        $destinationFolder.CopyHere($item)
+
+                        # Update the unzipped size and print progress
+                        $unzippedSize += $item.Size
+                        $progress = [math]::Round(($unzippedSize / $totalSize) * 100, 2)
+                        Write-Progress -Activity "Unpacking $ZipFilePath" -Status "$progress% Complete" -PercentComplete $progress
+                    }
+
+                    Write-Output "Unpacked $ZipFilePath to $DestinationPath"
+                }
+
+                # Example usage
+                Unpack-ZipFile -ZipFilePath "C:\\Local\\Path\\To\\Your\\Archive.zip" -DestinationPath "C:\\Destination\\Path"
+                '''
+            }
+        }
+    }
+}
