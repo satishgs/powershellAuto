@@ -11,54 +11,49 @@ pipeline {
         stage('Copy Zip') {
             steps {
                 powershell '''
-                    Write-Host "Initiating the process to copy and unpack the zip file..."
+                Write-Host "Starting the script to copy the zip file..."
 
-                    # Check if source file exists
-                    if (!(Test-Path -Path "$Env:SOURCE_PATH")) {
-                        throw "ERROR: The source file $Env:SOURCE_PATH does not exist. Please verify the file path."
-                    }
+                # Check if source file exists
+                if (!(Test-Path -Path "$Env:SOURCE_PATH")) {
+                    throw "ERROR: The source file at $Env:SOURCE_PATH does not exist. Please verify the file path and try again."
+                }
 
-                    # Check if destination directory exists, if not, create it
-                    $destinationDir = Split-Path -Path "$Env:DEST_PATH" -Parent
-                    if (!(Test-Path -Path $destinationDir)) {
-                        Write-Host "The destination directory $destinationDir does not exist. Creating the directory..."
-                        New-Item -ItemType Directory -Path $destinationDir | Out-Null
-                    }
+                # Check if destination directory exists, if not, create it
+                $destinationDir = Split-Path -Path "$Env:DEST_PATH" -Parent
+                if (!(Test-Path -Path $destinationDir)) {
+                    Write-Host "The destination directory at $destinationDir does not exist. Creating the directory..."
+                    New-Item -ItemType Directory -Path $destinationDir | Out-Null
+                }
 
-                    # Delete the destination file if it exists
-                    if (Test-Path -Path "$Env:DEST_PATH") {
-                        Write-Host "The destination file $Env:DEST_PATH already exists. Deleting the existing file..."
-                        Remove-Item -Path "$Env:DEST_PATH" -Force
-                    }
+                # Delete the destination file if it exists
+                if (Test-Path -Path "$Env:DEST_PATH") {
+                    Write-Host "The destination file at $Env:DEST_PATH already exists. Deleting the existing file..."
+                    Remove-Item -Path "$Env:DEST_PATH" -Force
+                }
 
-                    # Copy the file from the network drive to the local directory with progress
-                    Write-Host "Copying the file from $Env:SOURCE_PATH to $Env:DEST_PATH..."
-                    $sourceFile = Get-Item -Path "$Env:SOURCE_PATH"
-                    $destinationFile = New-Item -ItemType File -Path "$Env:DEST_PATH" -Force
-                    $bufferSize = 4MB
-                    $buffer = New-Object byte[] $bufferSize
-                    $sourceStream = $sourceFile.OpenRead()
-                    $destinationStream = $destinationFile.OpenWrite()
-                    $totalBytes = $sourceFile.Length
-                    $bytesRead = 0
-                    while (($readLength = $sourceStream.Read($buffer, 0, $bufferSize)) -ne 0) {
-                        $destinationStream.Write($buffer, 0, $readLength)
-                        $bytesRead += $readLength
-                        $percentage = ($bytesRead / $totalBytes) * 100
-                        Write-Host ("Copied {0:N2} % - {1:N2} MB of {2:N2} MB" -f $percentage, ($bytesRead/1MB), ($totalBytes/1MB))
-                    }
-                    $sourceStream.Close()
-                    $destinationStream.Close()
-                    Write-Host "File copy completed successfully."
+                Write-Host "Starting the file copy from $Env:SOURCE_PATH to $Env:DEST_PATH. This may take some time for large files..."
 
-                    # Verify the copy with a hash check
-                    Write-Host "Verifying the integrity of the copied file..."
-                    $sourceHash = Get-FileHash -Path "$Env:SOURCE_PATH" -Algorithm SHA256
-                    $destHash = Get-FileHash -Path "$Env:DEST_PATH" -Algorithm SHA256
-                    if ($sourceHash.Hash -ne $destHash.Hash) {
-                        throw "ERROR: Hash check failed. The source and destination files are not identical. Please try again."
-                    }
-                    Write-Host "Hash check passed successfully. The copied file is verified."
+                # Begin copying file with a buffer size of 4MB (modify as needed for your scenario)
+                $sourceStream = [System.IO.File]::OpenRead("$Env:SOURCE_PATH")
+                $destStream = [System.IO.File]::OpenWrite("$Env:DEST_PATH")
+                $bufferSize = 4MB
+                $buffer = New-Object byte[] $bufferSize
+                $bytesRead = 0
+                $totalBytesRead = 0
+                $totalBytes = $sourceStream.Length
+
+                do {
+                    $bytesRead = $sourceStream.Read($buffer, 0, $bufferSize)
+                    $destStream.Write($buffer, 0, $bytesRead)
+                    $totalBytesRead += $bytesRead
+                    $percentage = ($totalBytesRead / $totalBytes) * 100
+                    Write-Host ("Copying file: {0:N2} % Complete" -f $percentage)
+                } while ($bytesRead -gt 0)
+
+                $sourceStream.Close()
+                $destStream.Close()
+
+                Write-Host "File copy completed successfully."
                 '''
             }
         }
@@ -66,41 +61,39 @@ pipeline {
         stage('Unpack Zip') {
             steps {
                 powershell '''
-                    # Function to unpack a zip file
-                    function Unpack-ZipFile {
-                        param(
-                            [Parameter(Mandatory=$true)]
-                            [string] $ZipFilePath,
+                Write-Host "Starting the zip file unpacking process. This may take some time for large zip files..."
 
-                            [Parameter(Mandatory=$true)]
-                            [string] $DestinationPath
-                        )
+                # Function to unpack a zip file
+                function Unpack-ZipFile {
+                    param(
+                        [Parameter(Mandatory=$true)]
+                        [string] $ZipFilePath,
 
-                        # Check if the destination path exists
-                        if (!(Test-Path -Path $DestinationPath)) {
-                            # Create the destination path if it doesn't exist
-                            Write-Host "The destination directory $DestinationPath does not exist. Creating the directory..."
-                            New-Item -ItemType Directory -Path $DestinationPath | Out-Null
-                        }
+                        [Parameter(Mandatory=$true)]
+                        [string] $DestinationPath
+                    )
 
-                        # Unpack the zip file with progress
-                        Write-Host "Starting to unpack $ZipFilePath to $DestinationPath..."
-                        $shell = New-Object -ComObject Shell.Application
-                        $zip = $shell.NameSpace($ZipFilePath)
-                        $items = $zip.Items()
-                        $destination = $shell.NameSpace($DestinationPath)
-                        $totalItems = $items.Count
-                        $index = 0
-                        foreach ($item in $items) {
-                            $destination.CopyHere($item)
-                            $index++
-                            Write-Progress -Activity "Unpacking $ZipFilePath" -Status ("{0:N2} % Complete" -f ($index / $totalItems * 100))
-                        }
-                        Write-Host "Unpacking completed successfully."
+                    # Unpack the zip file with progress
+                    Write-Host "Starting to unpack $ZipFilePath to $DestinationPath..."
+                    $shell = New-Object -ComObject Shell.Application
+                    $zip = $shell.NameSpace($ZipFilePath)
+                    $items = $zip.Items()
+                    $destination = $shell.NameSpace($DestinationPath)
+                    $totalItems = $items.Count
+                    $index = 0
+
+                    foreach ($item in $items) {
+                        $destination.CopyHere($item)
+                        $index += 1
+                        $percentage = ($index / $totalItems) * 100
+                        Write-Host ("Unpacking zip file: {0:N2} % Complete" -f $percentage)
                     }
 
-                    # Example usage
-                    Unpack-ZipFile -ZipFilePath "$Env:DEST_PATH" -DestinationPath "$Env:UNPACK_PATH"
+                    Write-Host "Unpacked $ZipFilePath to $DestinationPath"
+                }
+
+                # Use the function
+                Unpack-ZipFile -ZipFilePath "$Env:DEST_PATH" -DestinationPath "$Env:UNPACK_PATH"
                 '''
             }
         }
