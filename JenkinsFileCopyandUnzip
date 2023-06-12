@@ -39,11 +39,13 @@ pipeline {
                     $buffer = New-Object byte[] $bufferSize
                     $sourceStream = $sourceFile.OpenRead()
                     $destinationStream = $destinationFile.OpenWrite()
+                    $totalBytes = $sourceFile.Length
                     $bytesRead = 0
                     while (($readLength = $sourceStream.Read($buffer, 0, $bufferSize)) -ne 0) {
                         $destinationStream.Write($buffer, 0, $readLength)
                         $bytesRead += $readLength
-                        Write-Progress -Activity "Copying `"$($sourceFile.Name)`"" -Status ("{0:N2} % Complete" -f ($bytesRead / $sourceFile.Length * 100))
+                        $percentage = ($bytesRead / $totalBytes) * 100
+                        Write-Host ("Copied {0:N2} % - {1:N2} MB of {2:N2} MB" -f $percentage, ($bytesRead/1MB), ($totalBytes/1MB))
                     }
                     $sourceStream.Close()
                     $destinationStream.Close()
@@ -74,12 +76,11 @@ pipeline {
                             [string] $DestinationPath
                         )
 
-                        # Check if destination directory exists, if not, create it
-                        if (!(Test-Path -Path $DestinationPath -PathType Container)) {
+                        # Check if the destination path exists
+                        if (!(Test-Path -Path $DestinationPath)) {
+                            # Create the destination path if it doesn't exist
                             Write-Host "The destination directory $DestinationPath does not exist. Creating the directory..."
                             New-Item -ItemType Directory -Path $DestinationPath | Out-Null
-                        } else {
-                            Write-Host "The destination directory $DestinationPath exists. The file will be unpacked into this directory."
                         }
 
                         # Unpack the zip file with progress
