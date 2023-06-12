@@ -1,0 +1,66 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('Unpack Zip') {
+            steps {
+                powershell '''
+                # Function to unpack a zip file
+                function Unpack-ZipFile {
+                    param(
+                        [Parameter(Mandatory=$true)]
+                        [string] $ZipFilePath,
+
+                        [Parameter(Mandatory=$true)]
+                        [string] $DestinationPath
+                    )
+
+                    try {
+                        # Check if the zip file exists
+                        if (!(Test-Path -Path $ZipFilePath)) {
+                            Write-Error "File $ZipFilePath does not exist."
+                            return
+                        }
+
+                        # Check if the destination path exists
+                        if (!(Test-Path -Path $DestinationPath)) {
+                            # Create the destination path if it doesn't exist
+                            New-Item -ItemType Directory -Path $DestinationPath | Out-Null
+                        }
+
+                        # Get the total size of the zip file
+                        $totalSize = (Get-Item -Path $ZipFilePath).Length
+                        $unzippedSize = 0
+
+                        # Create a shell application object to handle the zip file
+                        $shellApp = New-Object -ComObject Shell.Application
+                        $zipFolder = $shellApp.NameSpace($ZipFilePath)
+                        $destinationFolder = $shellApp.NameSpace($DestinationPath)
+
+                        # Iterate over each item in the zip file
+                        foreach ($item in $zipFolder.Items()) {
+                            # Copy the item to the destination folder
+                            $destinationFolder.CopyHere($item)
+
+                            # Update the unzipped size and the progress bar
+                            $unzippedSize += $item.Size
+                            $progress = ($unzippedSize / $totalSize) * 100
+                            Write-Progress -Activity "Unpacking $ZipFilePath" -Status "$progress% Complete" -PercentComplete $progress
+                        }
+
+                        # Ensure the progress bar reaches 100% at the end
+                        Write-Progress -Activity "Unpacking $ZipFilePath" -Completed
+                        Write-Output "Unpacked $ZipFilePath to $DestinationPath"
+                    }
+                    catch {
+                        Write-Error $_.Exception.Message
+                    }
+                }
+
+                # Example usage
+                Unpack-ZipFile -ZipFilePath "C:\\Path\\To\\Your\\Archive.zip" -DestinationPath "C:\\Destination\\Path"
+                '''
+            }
+        }
+    }
+}
