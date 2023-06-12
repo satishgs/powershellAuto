@@ -13,33 +13,25 @@ pipeline {
         stage('Copy Zip') {
             steps {
                 script {
-                    def robocopyCommand = "robocopy.exe"
-                    def robocopyArgs = """
-                        "$(Split-Path -Path $Env:SOURCE_PATH)" "$DEST_PATH" "$(Split-Path -Path $Env:SOURCE_PATH -Leaf)"
-                        /R:3 /W:5 /NP /TEE /ETA /MT /LOG+:$WORKSPACE\\robocopy.log
-                        /FP /XO /XC /XN /NS /NJH /NJS /NFL /NDL /BYTES /S /L /NJH /NJS /NFL /NDL /NP /NC
-                    """.stripIndent()
-
                     echo "Starting the script to copy the zip file..."
 
                     // Check if source file exists
-                    if (!fileExists("$Env:SOURCE_PATH")) {
-                        error "ERROR: The source file at $Env:SOURCE_PATH does not exist. Please verify the file path and try again."
+                    if (!fileExists(env.SOURCE_PATH)) {
+                        error "ERROR: The source file at ${env.SOURCE_PATH} does not exist. Please verify the file path and try again."
                     }
 
                     // Create destination directory if it doesn't exist
-                    createDirectory(file("$Env:DEST_PATH").parent)
+                    createDirectory(file(env.DEST_PATH).getParentFile())
 
                     // Delete the destination file if it exists
-                    deleteIfExists(file("$Env:DEST_PATH"))
+                    deleteIfExists(file(env.DEST_PATH))
 
-                    echo "Starting the file copy from $Env:SOURCE_PATH to $Env:DEST_PATH. This may take some time for large files..."
+                    echo "Starting the file copy from ${env.SOURCE_PATH} to ${env.DEST_PATH}. This may take some time for large files..."
 
-                    // Execute the Robocopy command
-                    def copyExitCode = bat(returnStatus: true, script: "${robocopyCommand} ${robocopyArgs}")
-                    if (copyExitCode != 0) {
-                        error "File copy failed. Exit code: ${copyExitCode}"
-                    }
+                    // Copy the file using Robocopy with progress updates
+                    bat """
+                        robocopy \\"$(Split-Path -Path ${env.SOURCE_PATH})\\" \\"${env.DEST_PATH}\\" \\"$(Split-Path -Path ${env.SOURCE_PATH} -Leaf)\\" /R:3 /W:5 /NP /TEE /MT /Z /LOG+:$WORKSPACE\\robocopy.log
+                    """
 
                     echo "File copy completed successfully."
                 }
@@ -55,25 +47,14 @@ pipeline {
                     def unpackZipFile = { zipFilePath, destinationPath ->
                         echo "Starting to unpack ${zipFilePath} to ${destinationPath}..."
 
-                        // Use System.IO.Compression.FileSystem class to extract the zip
-                        def shell = new ActiveXObject("Shell.Application")
-                        def zip = shell.NameSpace(zipFilePath)
-                        def items = zip.Items()
-                        def totalItems = items.Count
-                        def index = 0
-
-                        items.each { item ->
-                            shell.NameSpace(destinationPath).CopyHere(item)
-                            index++
-                            def percentage = (index / totalItems) * 100
-                            echo "Unpacking zip file: ${percentage.toFixed(2)} % Complete"
-                        }
+                        // Unpack the zip file using PowerShell
+                        bat "powershell.exe -Command Expand-Archive -Path \"${zipFilePath}\" -DestinationPath \"${destinationPath}\" -Force"
 
                         echo "Unpacked ${zipFilePath} to ${destinationPath}"
                     }
 
-                    // Use the function
-                    unpackZipFile("$Env:DEST_PATH", "$Env:UNPACK_PATH")
+                    // Use the function with progress updates
+                    unpackZipFile(env.DEST_PATH, env.UNPACK_PATH)
                 }
             }
         }
