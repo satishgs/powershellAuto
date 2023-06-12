@@ -42,14 +42,12 @@ pipeline {
                             # Copy the item to the destination folder
                             $destinationFolder.CopyHere($item)
 
-                            # Update the unzipped size and the progress bar
+                            # Update the unzipped size and print progress
                             $unzippedSize += $item.Size
                             $progress = ($unzippedSize / $totalSize) * 100
-                            Write-Progress -Activity "Unpacking $ZipFilePath" -Status "$progress% Complete" -PercentComplete $progress
+                            Write-Output "Unpacking $ZipFilePath: $progress% Complete"
                         }
 
-                        # Ensure the progress bar reaches 100% at the end
-                        Write-Progress -Activity "Unpacking $ZipFilePath" -Completed
                         Write-Output "Unpacked $ZipFilePath to $DestinationPath"
                     }
                     catch {
