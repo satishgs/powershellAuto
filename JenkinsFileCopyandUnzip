@@ -15,8 +15,34 @@ pipeline {
                         exit 1
                     }
 
-                    # Copy the file from the network drive to the local directory
-                    Copy-Item -Path "$Env:sourcePath" -Destination "$Env:destinationPath"
+                    # Check if destination directory exists, if not, create it
+                    $destinationDir = Split-Path -Path "$Env:destinationPath" -Parent
+                    if (!(Test-Path -Path $destinationDir)) {
+                        New-Item -ItemType Directory -Path $destinationDir | Out-Null
+                    }
+
+                    # Copy the file from the network drive to the local directory with progress
+                    $bufferSize = 8192
+                    $sourceStream = [System.IO.File]::OpenRead("$Env:sourcePath")
+                    $targetStream = [System.IO.File]::OpenWrite("$Env:destinationPath")
+                    $buffer = New-Object byte[] $bufferSize
+                    $totalLength = $sourceStream.Length
+                    $bytesRead = 0
+
+                    try {
+                        do {
+                            $readLength = $sourceStream.Read($buffer, 0, $bufferSize)
+                            $targetStream.Write($buffer, 0, $readLength)
+                            $bytesRead += $readLength
+                            $progress = [math]::Round(($bytesRead / $totalLength) * 100, 2)
+                            Write-Progress -Activity "Copying $Env:sourcePath" -Status "$progress% Complete" -PercentComplete $progress
+                        } while ($readLength -ne 0)
+                    }
+                    finally {
+                        $sourceStream.Close()
+                        $targetStream.Close()
+                    }
+
                     Write-Output "Copied $Env:sourcePath to $Env:destinationPath"
                     '''
                 }
@@ -38,12 +64,12 @@ pipeline {
 
                     # Validate the Zip file path
                     if (![IO.Path]::IsPathRooted($ZipFilePath) -or !(Test-Path -Path $ZipFilePath -PathType Leaf)) {
-                        throw "Please provide a valid ZipFilePath."
+                        throw "Invalid ZipFilePath: $ZipFilePath. Please provide a valid path to the Zip file."
                     }
 
                     # Validate the Destination directory path
                     if (![IO.Path]::IsPathRooted($DestinationPath)) {
-                        throw "Please provide a valid DestinationPath."
+                        throw "Invalid DestinationPath: $DestinationPath. Please provide a valid destination directory path."
                     }
 
                     # Create the destination directory if it does not exist
