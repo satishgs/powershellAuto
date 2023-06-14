@@ -1,0 +1,30 @@
+pipeline {
+    agent any
+
+    parameters {
+        choice(name: 'ENVIRONMENT', choices: ['Development', 'Staging', 'Production'], description: 'Select environment')
+    }
+
+    stages {
+        stage('Build') {
+            steps {
+                // Write environment to properties file
+                script {
+                    writeFile file: 'config.properties', text: "environment=${params.ENVIRONMENT}"
+                }
+
+                // Example build steps...
+                sh 'make build'
+            }
+        }
+        
+        stage('Test') {
+            steps {
+                // Example test steps...
+                sh 'make test'
+            }
+        }
+
+        // Add more stages as needed
+    }
+}
