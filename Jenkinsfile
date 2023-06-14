@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         // Set local drive
-        LOCAL_DRIVE = "D:"
+        LOCAL_DRIVE = "C:"
         // Set folder name with spaces
         FOLDER_NAME = "Software with Spaces"
         // Set local path
