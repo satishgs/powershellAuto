@@ -31,4 +31,12 @@ $gitPath = "$gitInstallDir\bin"
 $updatedPath = $envPath + ";" + $javaPath + ";" + $gitPath
 [Environment]::SetEnvironmentVariable("Path", $updatedPath, "Machine")
 
+# Validate Java installation
+Write-Host "Validating Java installation..."
+java -version
+
+# Validate Git installation
+Write-Host "Validating Git installation..."
+git --version
+
 Write-Host "JDK and Git installation complete."
