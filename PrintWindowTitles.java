@@ -1,23 +1,31 @@
 import com.hp.lft.sdk.*;
 import com.hp.lft.sdk.java.*;
 
-import java.util.List;
-
-public class PrintWindowTitles {
+public class ToggleWindows {
     public static void main(String[] args) {
         try {
-            // Describe a generic JavaWindow object
-            JavaWindow genericWindow = new JavaWindow();
+            // Describe the window
+            WindowDescription windowDesc = new WindowDescription.Builder()
+                    .ownedWindow(false)
+                    .build();
 
-            // Get a list of all top-level Java windows
-            List<JavaWindow> windows = genericWindow.getTopLevelWindows();
+            // Find all matching windows
+            Iterable<Window> windows = Desktop.findChildren(Window.class, windowDesc);
 
-            // Loop through the list and print out the title of each window
-            for (JavaWindow window : windows) {
-                System.out.println("Window title: " + window.getWindowTitle());
+            // Toggle between the windows
+            for (Window window : windows) {
+                System.out.println("Switching to window: " + window.getWindowTitle());
+
+                // Use the activate method to bring the window to the front
+                window.activate();
+
+                // Sleep for 2 seconds to give the user a chance to see the window
+                Thread.sleep(2000);
             }
 
         } catch (GeneralLeanFtException e) {
+            e.printStackTrace();
+        } catch (InterruptedException e) {
             e.printStackTrace();
         }
     }
