@@ -4,20 +4,45 @@ Add-Type -TypeDefinition @"
     using System.Runtime.InteropServices;
 
     public class MouseMover {
-        [DllImport("user32.dll")]
-        public static extern bool SetCursorPos(int X, int Y);
+        [StructLayout(LayoutKind.Sequential)]
+        public struct INPUT
+        {
+            public uint type;
+            public MOUSEINPUT mi;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct MOUSEINPUT
+        {
+            public int dx;
+            public int dy;
+            public uint mouseData;
+            public uint dwFlags;
+            public uint time;
+            public IntPtr dwExtraInfo;
+        }
+
+        [DllImport("user32.dll", SetLastError = true)]
+        public static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+
+        public static void MoveMouse()
+        {
+            INPUT[] inputs = new INPUT[1];
+            inputs[0].type = 0;  // INPUT_MOUSE
+            inputs[0].mi.dx = 1;
+            inputs[0].mi.dy = 1;
+            inputs[0].mi.mouseData = 0;
+            inputs[0].mi.dwFlags = 0x0001;  // MOUSEEVENTF_MOVE
+            inputs[0].mi.time = 0;
+            inputs[0].mi.dwExtraInfo = IntPtr.Zero;
+
+            SendInput(1, inputs, Marshal.SizeOf(typeof(INPUT)));
+        }
     }
 "@
 
-# Function to move the mouse cursor
-function Move-MouseCursor {
-    $currentCursorPosition = [System.Windows.Forms.Cursor]::Position
-    [MouseMover]::SetCursorPos($currentCursorPosition.X + 1, $currentCursorPosition.Y)
-    [MouseMover]::SetCursorPos($currentCursorPosition.X, $currentCursorPosition.Y)
-}
-
 # Main script
 while ($true) {
-    Move-MouseCursor
+    [MouseMover]::MoveMouse()
     Start-Sleep -Seconds 60
 }
