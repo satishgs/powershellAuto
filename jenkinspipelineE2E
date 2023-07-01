@@ -1,0 +1,126 @@
+pipeline {
+    agent {
+        label 'windows-slave'
+    }
+    parameters {
+        choice(
+            name: 'TEST_SUITE',
+            choices: ['Suite1', 'Suite2', 'Suite3'],  // replace with your actual suite names
+            description: 'Select the test suite to execute'
+        )
+        choice(
+            name: 'SHUTDOWN_AFTER_RUN',
+            choices: ['YES', 'NO'],
+            description: 'Shutdown the machine after test run?'
+        )
+    }
+    stages {
+        stage('Prepare Environment') {
+            steps {
+                // Disable session timeout and adjust power settings
+                bat 'powershell Set-ItemProperty -Path \'HKLM:\\SOFTWARE\\Policies\\Microsoft\\Windows NT\\Terminal Services\' -name MaxIdleTime -value 0'
+                bat 'powershell powercfg /s 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c'
+                // Simulate a keypress/mouse move to keep session active
+                bat '''
+                    powershell -Command "& {
+                        \$wshell = New-Object -ComObject wscript.shell;
+                        while (\$true) 
+                        {
+                            Start-Sleep -Seconds 300
+                            \$wshell.SendKeys('{SCROLLLOCK}')  // or replace with the mouse movement script
+                        }
+                    }"
+                '''
+            }
+        }
+        stage('Checkout') {
+            steps {
+                // checkout your project from SCM
+                // git 'https://github.com/your/repo.git'
+            }
+        }
+        stage('Run Tests') {
+            steps {
+                // run UFT tests with TestNG
+                // Use the choice parameter TEST_SUITE to build testng.xml
+                bat '''
+                    powershell -Command "& {
+                        \$directory = \'${params.TEST_SUITE}\'
+
+                        \$suite = New-Object System.Xml.XmlDocument
+
+                        \$decl = \$suite.CreateXmlDeclaration('1.0', 'UTF-8', \$null)
+                        \$suite.AppendChild(\$decl) | Out-Null
+
+                        \$suiteElement = \$suite.CreateElement('suite')
+                        \$suiteElement.SetAttribute('name', 'Suite')
+                        \$suiteElement.SetAttribute('parallel', 'none')
+
+                        \$testElement = \$suite.CreateElement('test')
+                        \$testElement.SetAttribute('name', 'Test')
+                        \$classesElement = \$suite.CreateElement('classes')
+
+                        Get-ChildItem -Path \$directory -Filter *.java | ForEach-Object {
+                            \$classElement = \$suite.CreateElement('class')
+                            \$classElement.SetAttribute('name', $_.BaseName)
+                            \$classesElement.AppendChild(\$classElement) | Out-Null
+                        }
+
+                        \$testElement.AppendChild(\$classesElement) | Out-Null
+                        \$suiteElement.AppendChild(\$testElement) | Out-Null
+                        \$suite.AppendChild(\$suiteElement) | Out-Null
+
+                        \$suite.OuterXml | Set-Content -Path (Join-Path -Path \$directory -ChildPath 'testng.xml') -Encoding utf8
+                    }"
+                '''
+                // assuming that testng runner is setup on path, otherwise replace with appropriate path to testng runner
+                bat 'testng ${params.TEST_SUITE}\\testng.xml'
+            }
+        }
+        stage('Generate Extent Reports') {
+            steps {
+                // your code to generate extent reports after every test case
+            }
+        }
+        stage('Upload and Cleanup') {
+            steps {
+                // upload to Nexus and then delete the local reports
+                nexusArtifactUploader artifacts: [[artifactId: 'test-output', classifier: '', file: 'test-output/*', type: 'zip']], credentialsId: 'nexus-credentials', groupId: 'com.yourcompany.yourproject', nexusUrl: 'http://your_nexus_url', nexusVersion: 'nexus3', packaging: 'zip', protocol: 'http', repository: 'your_repository', version: '1.0.${BUILD_NUMBER}'
+                deleteDir()
+            }
+        }
+        stage('Download and Publish Report') {
+            steps {
+                script {
+                    // Download the report from Nexus
+                    def reportUrl = 'http://your_nexus_url/repository/your_repository/com/yourcompany/yourproject/test-output/1.0.${BUILD_NUMBER}/test-output.zip'
+                    def localReportPath = 'test-output.zip'
+                    sh "curl -u username:password -O ${reportUrl} -o ${localReportPath}"
+
+                    // Unzip the report
+                    unzip zipFile: localReportPath, dir: 'test-output'
+
+                    // Publish the report
+                    publishHTML target: [
+                        allowMissing: false,
+                        alwaysLinkToLastBuild: false,
+                        keepAll: true,
+                        reportDir: 'test-output',
+                        reportFiles: 'index.html',  // replace with your actual report file
+                        reportName: 'HTML Report'
+                    ]
+                }
+            }
+        }
+        stage('Shutdown') {
+            steps {
+                // Check the choice parameter SHUTDOWN_AFTER_RUN to decide whether to shut down
+                script {
+                    if (params.SHUTDOWN_AFTER_RUN == 'YES') {
+                        bat 'shutdown /s /t 0'
+                    }
+                }
+            }
+        }
+    }
+}
